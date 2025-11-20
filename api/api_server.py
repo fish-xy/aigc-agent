@@ -14,6 +14,7 @@ from pydantic import BaseModel, HttpUrl
 from agent.base_agent import BaseAgent
 from agent.prompts import AGE_CLASSIFICATION_PROMPT_V3
 
+import os
 
 app = FastAPI(title="LLM Age Classification API", version="1.0.0")
 
@@ -34,6 +35,7 @@ class AgeClassificationResponse(BaseModel):
 # 使用 BaseAgent 来处理年龄分类任务
 # 传入年龄分类的系统提示词，BaseAgent 会自动根据配置选择 Ray LLM 或 OpenAI
 age_classification_agent = BaseAgent(
+    config_path=os.getenv('CONFIG_PATH', '/app/config.ini'),
     system_prompt=AGE_CLASSIFICATION_PROMPT_V3,
 )
 

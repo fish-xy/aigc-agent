@@ -30,10 +30,10 @@ class BaseAgent:
             system_prompt: 系统提示词，用于多模态任务
             tools: 工具列表
         """
+        self.tools = tools
         self.config = self._load_config(config_path)
         self.llm = self._initialize_llm()
         self.system_prompt = system_prompt
-        self.tools = tools
         self.agent = self._create_agent()
 
     def _load_config(self, config_path: str) -> configparser.ConfigParser:
@@ -61,7 +61,6 @@ class BaseAgent:
             )
 
             print(f"LLM初始化成功: {llm_config.get('model')}")
-            print(f"可用工具: {[tool.name for tool in self.tools]}")
             return llm
 
         except KeyError as e:
@@ -128,7 +127,7 @@ class BaseAgent:
                 {"type": "image_url", "image_url": {"url": image_url}},
             ])
 
-            # 直接使用LLM处理多模态输入，而不是通过agent
+            # 直接使用LLM处理多模态输入
             if self.system_prompt:
                 messages = [
                     SystemMessage(content=self.system_prompt),

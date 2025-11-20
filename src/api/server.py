@@ -83,8 +83,3 @@ def classify_age(payload: ImageRequest) -> AgeClassificationResponse:
 def health_check():
     """健康检查端点"""
     return {"status": "healthy", "service": "LLM Age Classification API"}
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)

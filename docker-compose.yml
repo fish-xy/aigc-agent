@@ -7,8 +7,8 @@ services:
       dockerfile: Dockerfile
     container_name: aigc-llm-server
     volumes:
-      # 挂载配置文件（如果存在）
-      - ./application.properties:/app/application.properties:ro
+      # 挂载配置文件（可选）
+      - ./configs/config.ini:/app/configs/config.ini:ro
       # 挂载日志目录（可选）
       - ./logs:/app/logs
     environment:

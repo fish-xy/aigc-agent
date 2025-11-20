@@ -1,5 +1,5 @@
-from agent.base_agent import BaseAgent
-from agent.prompts import AGE_CLASSIFICATION_PROMPT_V3
+from src.agents.base_agent import BaseAgent
+from src.prompts.age_classification import AGE_CLASSIFICATION_PROMPT_V3
 
 def test_invoke_returns_last_message_content():
     """集成测试 BaseAgent.invoke，实际调用 LLM/Agent"""
@@ -29,7 +29,7 @@ def test_run_with_image_calls_llm_and_returns_content():
 
 def test_classify_age_simple():
     """简单的 classify_age 函数测试"""
-    from api.api_server import classify_age, ImageRequest  # 替换为实际模块名
+    from src.api.server import classify_age, ImageRequest  # 替换为实际模块名
 
     # 创建测试请求
     request = ImageRequest(

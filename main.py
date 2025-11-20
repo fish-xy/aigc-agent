@@ -1,8 +1,8 @@
 """
 主程序入口
 """
-from agent import BaseAgent
-from utils.logger import setup_logger
+from src.agents import BaseAgent
+from src.core.logger import setup_logger
 
 logger = setup_logger(__name__)
 
@@ -33,7 +33,7 @@ def main():
                 continue
             
             # 运行 Agent
-            response = agent.run(user_input)
+            response = agent.invoke(user_input)
             print(f"助手: {response}\n")
         
         except KeyboardInterrupt:

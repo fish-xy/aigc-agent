@@ -11,8 +11,8 @@ from typing import Any, Dict
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, HttpUrl
 
-from agent.base_agent import BaseAgent
-from agent.prompts import AGE_CLASSIFICATION_PROMPT_V3
+from src.agents.base_agent import BaseAgent
+from  src.prompts.age_classification import AGE_CLASSIFICATION_PROMPT_V3
 
 import os
 

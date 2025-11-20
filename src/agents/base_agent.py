@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 """
-基础LLM Agent实现
-使用LangChain v1.0 API和configparser加载配置
-支持多模态图像处理和可配置工具
+基础 LLM Agent，支持多模态推理和工具调用
 """
-
 import configparser
 import os
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional
+
 from langchain.agents import create_agent
-from langchain_openai import ChatOpenAI
-from langchain_core.tools import tool, BaseTool
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.tools import BaseTool
+from langchain_openai import ChatOpenAI
 
 
 class BaseAgent:

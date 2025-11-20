@@ -1,4 +1,3 @@
-# 使用 Python 3.12 作为基础镜像
 FROM python:3.11-bullseye
 
 USER root
@@ -12,7 +11,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    CONFIG_PATH=/app/config.ini
+    CONFIG_PATH=/app/configs/config.ini
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -39,5 +38,5 @@ EXPOSE 9000
 
 # 设置默认命令：运行 HTTP API 服务
 # 使用环境变量 API_HOST 和 API_PORT 来配置监听地址和端口
-CMD ["sh", "-c", "uvicorn api.api_server:app --host ${API_HOST:-0.0.0.0} --port ${API_PORT:-9000}"]
+CMD ["sh", "-c", "uvicorn src.api.server:app --host ${API_HOST:-0.0.0.0} --port ${API_PORT:-9000}"]
 

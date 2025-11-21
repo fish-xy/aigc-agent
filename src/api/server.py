@@ -15,6 +15,12 @@ from src.agents.base_agent import BaseAgent
 from  src.prompts.age_classification import AGE_CLASSIFICATION_PROMPT_V3
 
 import os
+import json
+import requests
+import logging
+
+# 配置日志
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="LLM Age Classification API", version="1.0.0")
 
@@ -77,6 +83,63 @@ def classify_age(payload: ImageRequest) -> AgeClassificationResponse:
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"处理请求时出错: {str(e)}")
+
+
+@app.post("/models/qwen-vl")
+def qwen_vl(payload: ImageRequest):
+    """
+    接收图片URL，调用Qwen-VL服务进行年龄分类
+    直接返回Qwen-VL服务的响应
+    """
+    try:
+        # Qwen-VL服务的URL - 请根据实际情况修改
+        QWEN_VL_SERVICE_URL = "https://t6ohp9y6v15xhp-8000.proxy.runpod.net//models/qwen3_vl_2b/predict"
+
+        # 准备请求参数
+        request_info = json.dumps({
+            "task": "age_classification",
+            "model": "qwen-vl"
+        })
+
+        # 组装表单数据
+        form_data = {
+            "request_info": request_info,
+            "image_input": str(payload.image_url),  # 将HttpUrl转换为字符串
+            "prompt": AGE_CLASSIFICATION_PROMPT_V3
+        }
+
+        # 设置请求头
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json"
+        }
+
+        # 调用Qwen-VL服务
+        logger.info(f"调用Qwen-VL服务，图片URL: {payload.image_url}")
+        response = requests.post(
+            QWEN_VL_SERVICE_URL,
+            data=form_data,
+            headers=headers,
+            timeout=60  # 设置超时时间
+        )
+
+        # 检查响应状态
+        response.raise_for_status()
+
+        # 直接返回Qwen-VL服务的响应
+        qwen_response = response.text.strip()
+        logger.info(f"Qwen-VL服务返回: {qwen_response}")
+
+        return qwen_response
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"调用Qwen-VL服务失败: {str(e)}")
+        # 返回错误信息
+        return f"Error: {str(e)}"
+    except Exception as e:
+        logger.error(f"处理请求时发生错误: {str(e)}")
+        # 返回错误信息
+        return f"Error: {str(e)}"
 
 
 @app.get("/health")

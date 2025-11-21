@@ -9,7 +9,8 @@ from typing import Dict, Any, List, Optional
 from langchain.agents import create_agent
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import init_chat_model
+from langgraph.checkpoint.memory import InMemorySaver
 
 
 class BaseAgent:
@@ -30,6 +31,7 @@ class BaseAgent:
         """
         self.tools = tools
         self.config = self._load_config(config_path)
+        self.checkpointer = InMemorySaver()
         self.llm = self._initialize_llm()
         self.system_prompt = system_prompt
         self.agent = self._create_agent()
@@ -43,14 +45,15 @@ class BaseAgent:
         config.read(config_path, encoding='utf-8')
         return config
 
-    def _initialize_llm(self) -> ChatOpenAI:
+    def _initialize_llm(self):
         """初始化LLM模型"""
         try:
             llm_config = self.config['llm']
             ray_config = self.config['ray']
 
-            llm = ChatOpenAI(
+            llm = init_chat_model(
                 model=llm_config.get('model', 'gpt-3.5-turbo'),
+                model_provider="openai",
                 temperature=float(llm_config.get('temperature', '0.7')),
                 max_tokens=int(llm_config.get('max_tokens', '2000')),
                 base_url=ray_config.get('base_url', 'http://localhost:8000/v1'),
@@ -78,7 +81,8 @@ class BaseAgent:
         agent = create_agent(
             model=self.llm,
             tools=self.tools,
-            system_prompt=system_message
+            system_prompt=system_message,
+            checkpointer=self.checkpointer
         )
 
         return agent

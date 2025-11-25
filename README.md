@@ -1,7 +1,7 @@
-docker build -t age-classification-api .
+docker build -t aigc_agent_server . 
 
-docker run -p 9000:9000 age-classification-api
+docker run --name aigc_agent_server -p 9000:9000 aigc_agent_server
 
-docker exec -it age-classification-api  /bin/bash
+docker exec -it aigc_agent_server  /bin/bash
 
-docker logs age-classification-api
+docker logs aigc_agent_server

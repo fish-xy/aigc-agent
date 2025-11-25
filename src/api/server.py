@@ -13,22 +13,27 @@ from pydantic import BaseModel, HttpUrl
 
 from src.agents.base_agent import BaseAgent
 from  src.prompts.age_classification import AGE_CLASSIFICATION_PROMPT_V3
+from src.core.logger_util import create_logger
 
 import os
 import json
 import requests
 import logging
+import random
 
 # 配置日志
-logger = logging.getLogger(__name__)
+logger = create_logger("api_log",
+                                    os.path.join("/app/logs", "llm_server_api.log"),
+                                    logging.INFO)
 
-app = FastAPI(title="LLM Age Classification API", version="1.0.0")
+app = FastAPI(title="LLM Server API", version="1.0.0")
 
 
 class ImageRequest(BaseModel):
     """请求体：只包含图片 URL"""
 
     image_url: HttpUrl
+    request_info: Dict[str, Any]
 
 
 class AgeClassificationResponse(BaseModel):
@@ -88,23 +93,24 @@ def classify_age(payload: ImageRequest) -> AgeClassificationResponse:
 @app.post("/models/qwen-vl")
 def qwen_vl(payload: ImageRequest):
     """
-    接收图片URL，调用Qwen-VL服务进行年龄分类
-    直接返回Qwen-VL服务的响应
+    接收图片URL和请求信息，从多个域名中随机选择调用Qwen-VL服务进行年龄分类
+    返回标准化的响应格式
     """
     try:
-        # Qwen-VL服务的URL - 请根据实际情况修改
-        QWEN_VL_SERVICE_URL = "https://t6ohp9y6v15xhp-8000.proxy.runpod.net//models/qwen3_vl_2b/predict"
+        # 定义多个Qwen-VL服务域名
+        QWEN_VL_DOMAINS = [
+            "llmpic01.flyingnet.org"
+        ]
+        logger.info(f"请求入参，request_info: {payload.request_info}, 图片URL: {payload.image_url}")
 
-        # 准备请求参数
-        request_info = json.dumps({
-            "task": "age_classification",
-            "model": "qwen-vl"
-        })
+        # 随机选择一个域名
+        selected_domain = random.choice(QWEN_VL_DOMAINS)
+        QWEN_VL_SERVICE_URL = f"https://{selected_domain}/models/qwen3_vl_2b/predict"
 
         # 组装表单数据
         form_data = {
-            "request_info": request_info,
-            "image_input": str(payload.image_url),  # 将HttpUrl转换为字符串
+            "request_info": json.dumps(payload.request_info),
+            "image_input": str(payload.image_url),
             "prompt": AGE_CLASSIFICATION_PROMPT_V3
         }
 
@@ -115,32 +121,51 @@ def qwen_vl(payload: ImageRequest):
         }
 
         # 调用Qwen-VL服务
-        logger.info(f"调用Qwen-VL服务，图片URL: {payload.image_url}")
+        logger.debug(f"即将调用Qwen-VL服务，URL: {QWEN_VL_SERVICE_URL}, headers: {headers}, form_data: {form_data}")
         response = requests.post(
             QWEN_VL_SERVICE_URL,
             data=form_data,
             headers=headers,
-            timeout=60  # 设置超时时间
+            timeout=60
         )
 
         # 检查响应状态
         response.raise_for_status()
 
-        # 直接返回Qwen-VL服务的响应
+        # 获取并清理Qwen-VL服务的响应
         qwen_response = response.text.strip()
         logger.info(f"Qwen-VL服务返回: {qwen_response}")
 
-        return qwen_response
+        # 清理响应文本，提取年龄分类结果
+        # 移除所有引号和空白字符
+        cleaned_text = qwen_response.strip().strip('"').strip("'").strip()
+        valid_results = ["Child", "Adult", "Both", "Unclear"]
+
+        # 如果结果不在预期中，标记为Unclear
+        if cleaned_text not in valid_results:
+            cleaned_result = "Unclear"
+        else:
+            cleaned_result = cleaned_text
+
+        # 返回标准化的响应格式
+        return {
+            "status": "success",
+            "result": cleaned_result.lower(),
+            "raw_response": qwen_response,
+        }
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"调用Qwen-VL服务失败: {str(e)}")
-        # 返回错误信息
-        return f"Error: {str(e)}"
+        logger.error(f"调用Qwen-VL服务失败，域名: {selected_domain}, 错误: {str(e)}")
+        return {
+            "status": "error",
+            "result": f"调用服务失败: {str(e)}",
+        }
     except Exception as e:
         logger.error(f"处理请求时发生错误: {str(e)}")
-        # 返回错误信息
-        return f"Error: {str(e)}"
-
+        return {
+            "status": "error",
+            "result": f"处理请求失败: {str(e)}",
+        }
 
 @app.get("/health")
 def health_check():

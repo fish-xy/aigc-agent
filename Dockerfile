@@ -6,6 +6,8 @@ RUN sed -i 's|http://.*.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources
 # 设置工作目录
 WORKDIR /app
 
+RUN mkdir -p /app/logs
+
 # 设置环境变量
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

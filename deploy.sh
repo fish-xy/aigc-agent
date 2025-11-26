@@ -102,13 +102,72 @@ docker_login() {
 # 拉取镜像
 pull_image() {
     local image_name="maxxiong001/aigc_agent_server:latest"
+    local container_name="aigc_agent_server"
 
-    log_info "拉取镜像: $image_name"
+    log_info "检查本地容器和镜像状态..."
 
+    # 检查是否有正在运行的容器
+    local running_container=$(docker ps -q -f name="$container_name")
+    if [ ! -z "$running_container" ]; then
+        log_warn "发现正在运行的容器: $running_container，正在停止..."
+        docker stop "$running_container"
+        if [ $? -eq 0 ]; then
+            log_info "容器停止成功"
+        else
+            log_error "容器停止失败"
+            return 1
+        fi
+    fi
+
+    # 检查是否有已停止的容器
+    local stopped_container=$(docker ps -aq -f name="$container_name")
+    if [ ! -z "$stopped_container" ]; then
+        log_warn "发现已停止的容器: $stopped_container，正在删除..."
+        docker rm "$stopped_container"
+        if [ $? -eq 0 ]; then
+            log_info "容器删除成功"
+        else
+            log_error "容器删除失败"
+            return 1
+        fi
+    fi
+
+    # 检查本地是否存在同名镜像
+    local existing_image=$(docker images -q "$image_name")
+    if [ ! -z "$existing_image" ]; then
+        log_warn "发现本地镜像: $existing_image，正在删除..."
+        docker rmi "$image_name"
+        if [ $? -eq 0 ]; then
+            log_info "本地镜像删除成功"
+        else
+            log_error "本地镜像删除失败"
+            # 如果删除失败，尝试强制删除
+            log_warn "尝试强制删除镜像..."
+            docker rmi -f "$image_name"
+            if [ $? -eq 0 ]; then
+                log_info "镜像强制删除成功"
+            else
+                log_error "镜像强制删除失败，可能仍有容器依赖"
+                return 1
+            fi
+        fi
+    fi
+
+    log_info "开始拉取最新镜像: $image_name"
+
+    # 拉取新镜像
     docker pull "$image_name"
 
     if [ $? -eq 0 ]; then
         log_info "镜像拉取成功"
+
+        # 验证镜像信息
+        local new_image_id=$(docker images -q "$image_name")
+        log_info "新镜像ID: $new_image_id"
+
+        # 显示镜像详情
+        docker images | grep "$(echo $image_name | cut -d: -f1)"
+
         return 0
     else
         log_error "镜像拉取失败"
@@ -209,6 +268,154 @@ show_logs() {
     docker logs --tail 20 aigc_agent_server
 }
 
+# 安装和配置 Nginx 反向代理
+setup_nginx_proxy() {
+    local app_port=9000
+    local nginx_conf="/etc/nginx/sites-available/aigc_agent"
+    local nginx_enabled="/etc/nginx/sites-enabled/aigc_agent"
+
+    log_info "检查 Nginx 是否已安装..."
+
+    # 检查是否已安装 Nginx
+    if ! command -v nginx &> /dev/null; then
+        log_warn "Nginx 未安装，开始安装..."
+        sudo apt-get update
+        sudo apt-get install -y nginx
+
+        if [ $? -eq 0 ]; then
+            log_info "Nginx 安装成功"
+        else
+            log_error "Nginx 安装失败"
+            return 1
+        fi
+    else
+        log_info "Nginx 已安装，版本: $(nginx -v 2>&1)"
+    fi
+
+    # 创建 Nginx 配置文件
+    log_info "创建 Nginx 配置文件..."
+
+    sudo tee "$nginx_conf" > /dev/null << EOF
+server {
+    listen 80;
+    server_name http://llmagent01.flyingnet.org;
+
+    # 反向代理配置
+    location / {
+        proxy_pass http://127.0.0.1:$app_port;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+
+        # 超时设置
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # 健康检查端点
+    location /health {
+        proxy_pass http://127.0.0.1:$app_port/health;
+        proxy_set_header Host \$host;
+        access_log off;
+    }
+
+    # 静态文件缓存（如果有的话）
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
+
+    if [ $? -eq 0 ]; then
+        log_info "Nginx 配置文件创建成功: $nginx_conf"
+    else
+        log_error "Nginx 配置文件创建失败"
+        return 1
+    fi
+
+    # 启用站点配置
+    log_info "启用 Nginx 站点配置..."
+
+    # 删除默认配置（如果存在）
+    if [ -f "/etc/nginx/sites-enabled/default" ]; then
+        sudo rm -f "/etc/nginx/sites-enabled/default"
+        log_info "已删除默认 Nginx 站点配置"
+    fi
+
+    # 创建符号链接启用配置
+    if [ ! -L "$nginx_enabled" ]; then
+        sudo ln -sf "$nginx_conf" "$nginx_enabled"
+        log_info "Nginx 站点配置已启用"
+    fi
+
+    # 测试 Nginx 配置
+    log_info "测试 Nginx 配置..."
+    if sudo nginx -t; then
+        log_info "Nginx 配置测试通过"
+    else
+        log_error "Nginx 配置测试失败"
+        return 1
+    fi
+
+    # 启动或重启 Nginx
+    log_info "启动/重启 Nginx 服务..."
+
+    if sudo systemctl is-active --quiet nginx; then
+        sudo systemctl reload nginx
+        log_info "Nginx 服务已重新加载"
+    else
+        sudo systemctl start nginx
+        sudo systemctl enable nginx
+        log_info "Nginx 服务已启动并设置开机自启"
+    fi
+
+    # 检查 Nginx 服务状态
+    if sudo systemctl is-active --quiet nginx; then
+        log_info "Nginx 服务运行正常"
+
+        # 检查防火墙状态（如果启用）
+        if command -v ufw &> /dev/null && sudo ufw status | grep -q "Status: active"; then
+            log_warn "检测到 UFW 防火墙已启用，确保端口 80 已开放"
+            if ! sudo ufw status | grep -q "80.*ALLOW"; then
+                log_info "开放端口 80"
+                sudo ufw allow 80/tcp
+            fi
+        fi
+
+        return 0
+    else
+        log_error "Nginx 服务启动失败"
+        return 1
+    fi
+}
+
+# 检查 Nginx 代理状态
+check_nginx_proxy() {
+    local max_attempts=10
+    local attempt=1
+
+    log_info "检查 Nginx 反向代理状态..."
+
+    while [ $attempt -le $max_attempts ]; do
+        log_info "测试代理连接 ($attempt/$max_attempts)..."
+
+        if curl -s --connect-timeout 10 http://localhost/health > /dev/null 2>&1; then
+            local health_response=$(curl -s http://localhost/health)
+            log_info "Nginx 代理健康检查成功: $health_response"
+            return 0
+        fi
+
+        sleep 2
+        ((attempt++))
+    done
+
+    log_error "Nginx 代理连接超时"
+    return 1
+}
+
 # 清理资源（可选）
 cleanup() {
     log_info "清理临时文件..."
@@ -250,6 +457,22 @@ main() {
         log_info "健康检查: http://localhost:9000/health"
         log_info "年龄分类接口: http://localhost:9000/classify-age"
         log_info "Qwen-VL 接口: http://localhost:9000/models/qwen-vl"
+
+        # 设置 Nginx 反向代理
+        log_info "开始设置 Nginx 反向代理..."
+        if setup_nginx_proxy; then
+            if check_nginx_proxy; then
+                log_info "🎉 Nginx 反向代理配置成功！"
+                log_info "现在可以通过以下地址访问服务："
+                log_info "HTTP 地址: http://localhost"
+                log_info "健康检查: http://localhost/health"
+                log_info "原始端口仍然可用: http://localhost:9000"
+            else
+                log_warn "Nginx 代理检查失败，但原始服务仍在运行"
+            fi
+        else
+            log_warn "Nginx 配置失败，但原始服务仍在端口 9000 运行"
+        fi
     else
         log_error "❌ 服务部署失败"
         show_logs

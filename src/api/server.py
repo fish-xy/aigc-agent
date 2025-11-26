@@ -158,13 +158,13 @@ def qwen_vl(payload: ImageRequest):
         logger.error(f"调用Qwen-VL服务失败，域名: {selected_domain}, 错误: {str(e)}")
         return {
             "status": "error",
-            "result": f"调用服务失败: {str(e)}",
+            "err_message": f"调用服务失败: {str(e)}",
         }
     except Exception as e:
         logger.error(f"处理请求时发生错误: {str(e)}")
         return {
             "status": "error",
-            "result": f"处理请求失败: {str(e)}",
+            "err_message": f"处理请求失败: {str(e)}",
         }
 
 @app.get("/health")

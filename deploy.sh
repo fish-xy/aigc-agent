@@ -118,7 +118,7 @@ pull_image() {
 
 # 运行容器
 run_container() {
-    local image_name="aigc_agent_server"
+    local image_name="maxxiong001/aigc_agent_server:latest"
     local host_port=9000
     local container_port=9000
 

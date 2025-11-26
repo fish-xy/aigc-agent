@@ -1,6 +1,6 @@
-docker build -t aigc_agent_server . 
+docker build -t maxxiong001/aigc_agent_server:latest . 
 
-docker run --name aigc_agent_server -p 9000:9000 aigc_agent_server
+docker run --name aigc_agent_server -p 9000:9000 maxxiong001/aigc_agent_server:latest
 
 docker exec -it aigc_agent_server  /bin/bash
 

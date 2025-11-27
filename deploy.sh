@@ -80,7 +80,7 @@ docker_login() {
     log_info "登录 Docker Hub..."
 
     local username="maxxiong001"
-    local password="dckr_pat_pnQARr09Bcb6bHoIlRJ0ekB2VFE"
+    local password="test"
 
     # 检查是否已经登录
     if docker info 2>/dev/null | grep -q "Username: $username"; then

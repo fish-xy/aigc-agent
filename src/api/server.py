@@ -171,3 +171,8 @@ def qwen_vl(payload: ImageRequest):
 def health_check():
     """健康检查端点"""
     return {"status": "healthy", "service": "LLM Age Classification API"}
+
+@app.get("/queue")
+def health_check():
+    """健康检查端点"""
+    return {"queue_pending": [],"queue_running": []}

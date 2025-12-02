@@ -268,11 +268,16 @@ show_logs() {
     docker logs --tail 20 aigc_agent_server
 }
 
-# 安装和配置 Nginx 反向代理
+# 安装和配置 Nginx 反向代理 (包含 HTTPS )
 setup_nginx_proxy() {
     local app_port=9000
-    local nginx_conf="/etc/nginx/sites-available/aigc_agent"
-    local nginx_enabled="/etc/nginx/sites-enabled/aigc_agent"
+    local nginx_conf_http="/etc/nginx/sites-available/aigc_agent_http"
+    local nginx_conf_https="/etc/nginx/sites-available/aigc_agent_https"
+    local nginx_enabled_http="/etc/nginx/sites-enabled/aigc_agent_http"
+    local nginx_enabled_https="/etc/nginx/sites-enabled/aigc_agent_https"
+    local cert_dir="/etc/ssl/certs/netful"
+    local cert_file="$cert_dir/netful.org.pem"
+    local key_file="$cert_dir/netful.org.key"
 
     log_info "检查 Nginx 是否已安装..."
 
@@ -292,21 +297,126 @@ setup_nginx_proxy() {
         log_info "Nginx 已安装，版本: $(nginx -v 2>&1)"
     fi
 
-    # 创建 Nginx 配置文件
-    log_info "创建 Nginx 配置文件..."
+    # 创建证书目录
+    log_info "创建 SSL 证书目录..."
+    sudo mkdir -p "$cert_dir"
 
-    sudo tee "$nginx_conf" > /dev/null << EOF
+    # 写入证书文件
+    log_info "写入 SSL 证书文件..."
+    sudo tee "$cert_file" > /dev/null << 'EOF'
+-----BEGIN CERTIFICATE-----
+MIIEoDCCA4igAwIBAgIUKm4c4kJkqS9pHlY7s5/4VKKS+lUwDQYJKoZIhvcNAQEL
+BQAwgYsxCzAJBgNVBAYTAlVTMRkwFwYDVQQKExBDbG91ZEZsYXJlLCBJbmMuMTQw
+MgYDVQQLEytDbG91ZEZsYXJlIE9yaWdpbiBTU0wgQ2VydGlmaWNhdGUgQXV0aG9y
+aXR5MRYwFAYDVQQHEw1TYW4gRnJhbmNpc2NvMRMwEQYDVQQIEwpDYWxpZm9ybmlh
+MB4XDTI1MTIwMjA3NDUwMFoXDTQwMTEyODA3NDUwMFowYjEZMBcGA1UEChMQQ2xv
+dWRGbGFyZSwgSW5jLjEdMBsGA1UECxMUQ2xvdWRGbGFyZSBPcmlnaW4gQ0ExJjAk
+BgNVBAMTHUNsb3VkRmxhcmUgT3JpZ2luIENlcnRpZmljYXRlMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlAqpf5GRdg6oQMJt9RLFx7w4zPe62hlIsy6t
+g5WT6nVXE5MlG26j0ItFKJctUhtmAft7Ut/RW/NIjRyQxIsliaR9LW7h7N/kC5Y+
+SdARWQbyekyPKsAYsdZ9Kd63TCPj6TRvaSAmP+dxj0WGXiriVshxbsonzQQYYA1g
+yCCuOh7HcvcpaL7BKjdCZs9OKOmAAm0D3BuMfmX1GLmlQvc7Sgi4rK9kmHjRfdAC
+7FcDrlavrYP0jimdOkMyYDDudmqqxvrTufk2KSFq94XGU5ysNDpQXzJh7FuP4om1
+CDxVrTqVfUB3u/TtK2DGnw+ztuhwKUsEW8YEjLxMbvsjqwhilwIDAQABo4IBIjCC
+AR4wDgYDVR0PAQH/BAQDAgWgMB0GA1UdJQQWMBQGCCsGAQUFBwMCBggrBgEFBQcD
+ATAMBgNVHRMBAf8EAjAAMB0GA1UdDgQWBBSwWf3YiShU3O15CQwIa/xDG63tqDAf
+BgNVHSMEGDAWgBQk6FNXXXw0QIep65TbuuEWePwppDBABggrBgEFBQcBAQQ0MDIw
+MAYIKwYBBQUHMAGGJGh0dHA6Ly9vY3NwLmNsb3VkZmxhcmUuY29tL29yaWdpbl9j
+YTAjBgNVHREEHDAaggwqLm5ldGZ1bC5vcmeCCm5ldGZ1bC5vcmcwOAYDVR0fBDEw
+LzAtoCugKYYnaHR0cDovL2NybC5jbG91ZGZsYXJlLmNvbS9vcmlnaW5fY2EuY3Js
+MA0GCSqGSIb3DQEBCwUAA4IBAQBV82BLmBOc0qc+uJyUQQmCAi2kT7rGp9YAJ4XM
+8rq3BXRNlCJfa5kISAyvY1RYyCcm/RxsZGbwwIJpc/+hEZzpE7lgit/5VjUZnogl
+/kBQ36CYMKmEmTfHlU4qRWUFDyY/8rZRTrVFDkC6OIMXL0n2oCFG7b8YdyQAFLgG
+zaKcWJJbJWav5phbIfiFZUrx7vXqt0C8P6rxZ3rT2WYZUrNpAks4PhnyHpAtxf8/
+o2SL5fXPd+ImOcJhGS7PxHcKRy2xTsl5Rpqgz0cJ4srWuKyNc4hqPbiOsahsFi+R
+tfrK9EcG6/60LgiiJYFULFAKkW7YoDZMSSLNA54hyZVJHHQQ
+-----END CERTIFICATE-----
+EOF
+
+    # 写入密钥文件
+    log_info "写入 SSL 密钥文件..."
+    sudo tee "$key_file" > /dev/null << 'EOF'
+-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCUCql/kZF2DqhA
+wm31EsXHvDjM97raGUizLq2DlZPqdVcTkyUbbqPQi0Uoly1SG2YB+3tS39Fb80iN
+HJDEiyWJpH0tbuHs3+QLlj5J0BFZBvJ6TI8qwBix1n0p3rdMI+PpNG9pICY/53GP
+RYZeKuJWyHFuyifNBBhgDWDIIK46Hsdy9ylovsEqN0Jmz04o6YACbQPcG4x+ZfUY
+uaVC9ztKCLisr2SYeNF90ALsVwOuVq+tg/SOKZ06QzJgMO52aqrG+tO5+TYpIWr3
+hcZTnKw0OlBfMmHsW4/iibUIPFWtOpV9QHe79O0rYMafD7O26HApSwRbxgSMvExu
++yOrCGKXAgMBAAECggEACZJqVzKpdMquZJqtrocrWN1VPbbn92GIRh2iOwU9t2pJ
+tZzfbQ5bvAh3g/3JN4a2jp9mBHvBZMvAtpOZ94R0Rb5Vz1+mARzZ+QAawKJ1ZdUT
+u2HCuAEwzmyPm8ZMuN2Vxy/DUO2gpu0eCJLkO8wvLtpuZpaVS6WmtdF56DayccJY
+xbSN5riHg1HcDtih6p2VvTPBFNfl7NvzS77tVfg1W+AlSWmTiRwprnIpc6Oc94X5
+fWwtgFL5qRoLGt4SNl9oFAYm4i/F7nqqNrbx9HWhnCoGeeDB6qwYUTg9oRsIBdwX
+JcO/hxRn4a200Vh+3rvrYH8xkl5GGaxsmw13LjFy8QKBgQDPO7zzuKwdZYhPF1XZ
+MWK0EINi/ChX31Q9/+FyLAftPXoPNWn9N+3Di3T2zKgccnMCZQUulwNPtQVKStqB
+MuS8Ut6OC2jkEJMMjGETCWBGXhcawJ35Efhc/RxVtrTpaWm9/9dpo8ewy20GN7oy
+OOyX2YYIrmimnW93mp3vJTXgnQKBgQC24RDgM97BgEfnjChM+9ZiNRs4RUzQQPx5
+gqi8MUSvPdDkTSLkr6J7WHb7aOR2ZfMdvc4D4qYsnbf/2UROcW0ibT5tz5REL3o3
+vUDvA9XhMmudpBSe2IozdJeKs2CEZNjF1yp93LLmW4GkiErgj643A/478xvrPNcK
+rm/iiSIHwwKBgQDL8D8YHoIK//Nv2kga0RYQnDugewR8zYRK63kC8b/vQdPQCcG/
+d33eNWyqwGckb6EtFxtNaUHR/BQzs4xrHxmpF2h7o1DbOFBuRev2XwDG3yufoTUV
+exDO+iwbUg2hsqJkX9Wu2YXYP6mQN+FeMVTsbx4PhwvoBAFBVADe6uClpQKBgFq5
+TKXtFZTpDsLPxS5rwO73aYmA15p4oselChBSYMCO6hJYMfdBKloGiQAwCSazbOhU
+QN+skMORerZyEnDX1Ew/5biUQfmRlBAS0yO/w1r0qG6L967VvbnJHWSxmDAV13RO
+ScYmtpmQy7/T3VGJ9eNVF8ql0DPi+stRvi+j2D4BAoGBAKMmbm1Yor8jjvqfwHEn
+jW2T55yeC05xEbRGtUn20r5HXm83uKk8Yl6Csq8fyFAp7QPwk244UYC6M5jt4AqS
+uv2a+E20S7MClM1WUl9wZJUW0P67kHIDNhtWmFGzvIoOQApt7VnWJ/iI7ELtMbSM
+Ra4aIyPugAN4ZOMQ3UiGA1ay
+-----END PRIVATE KEY-----
+EOF
+
+    # 设置证书文件权限
+    sudo chmod 644 "$cert_file"
+    sudo chmod 600 "$key_file"
+    sudo chown root:root "$cert_file" "$key_file"
+
+    log_info "创建 Nginx HTTP 配置文件 (80端口，重定向到HTTPS)..."
+    sudo tee "$nginx_conf_http" > /dev/null << EOF
 server {
     listen 80;
-    server_name http://llmagent01.flyingnet.org;
+    listen [::]:80;
+    server_name llmagent01.flyingnet.org;
+    client_max_body_size 20M;
+    return 301 https://\$host\$request_uri;
+}
+EOF
+
+    log_info "创建 Nginx HTTPS 配置文件 (443端口，SSL反向代理)..."
+    sudo tee "$nginx_conf_https" > /dev/null << EOF
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name llmagent01.flyingnet.org;
+
+    ssl_certificate $cert_file;
+    ssl_certificate_key $key_file;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    client_max_body_size 20M;
+
+    # 健康检查
+    location = /health {
+        proxy_pass http://127.0.0.1:$app_port/health;
+        proxy_set_header Host \$host;
+        access_log off;
+    }
 
     # 反向代理配置
     location / {
-        proxy_pass http://127.0.0.1:$app_port;
+        proxy_pass http://127.0.0.1:$app_port/;
+
+        # 反向代理常规头
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+
+        # 长连接 & WebSocket
+        proxy_http_version 1.1;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Upgrade \$http_upgrade;
 
         # 超时设置
         proxy_connect_timeout 60s;
@@ -314,15 +424,8 @@ server {
         proxy_read_timeout 60s;
     }
 
-    # 健康检查端点
-    location /health {
-        proxy_pass http://127.0.0.1:$app_port/health;
-        proxy_set_header Host \$host;
-        access_log off;
-    }
-
-    # 静态文件缓存（如果有的话）
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+    # 静态文件缓存
+    location ~* \\.(js|css|png|jpg|jpeg|gif|ico|svg)\$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
     }
@@ -330,7 +433,7 @@ server {
 EOF
 
     if [ $? -eq 0 ]; then
-        log_info "Nginx 配置文件创建成功: $nginx_conf"
+        log_info "Nginx 配置文件创建成功"
     else
         log_error "Nginx 配置文件创建失败"
         return 1
@@ -346,10 +449,9 @@ EOF
     fi
 
     # 创建符号链接启用配置
-    if [ ! -L "$nginx_enabled" ]; then
-        sudo ln -sf "$nginx_conf" "$nginx_enabled"
-        log_info "Nginx 站点配置已启用"
-    fi
+    sudo ln -sf "$nginx_conf_http" "$nginx_enabled_http"
+    sudo ln -sf "$nginx_conf_https" "$nginx_enabled_https"
+    log_info "Nginx 站点配置已启用"
 
     # 测试 Nginx 配置
     log_info "测试 Nginx 配置..."
@@ -360,28 +462,23 @@ EOF
         return 1
     fi
 
-    # 启动或重启 Nginx
-    log_info "启动/重启 Nginx 服务..."
-
-    if sudo systemctl is-active --quiet nginx; then
-        sudo systemctl reload nginx
-        log_info "Nginx 服务已重新加载"
-    else
-        sudo systemctl start nginx
-        sudo systemctl enable nginx
-        log_info "Nginx 服务已启动并设置开机自启"
-    fi
+    # 重启 Nginx
+    log_info "重启 Nginx 服务..."
+    sudo systemctl restart nginx
+    sudo systemctl enable nginx
 
     # 检查 Nginx 服务状态
     if sudo systemctl is-active --quiet nginx; then
         log_info "Nginx 服务运行正常"
 
-        # 检查防火墙状态（如果启用）
+        # 检查防火墙状态
         if command -v ufw &> /dev/null && sudo ufw status | grep -q "Status: active"; then
-            log_warn "检测到 UFW 防火墙已启用，确保端口 80 已开放"
+            log_warn "检测到 UFW 防火墙已启用，确保端口 80 和 443 已开放"
             if ! sudo ufw status | grep -q "80.*ALLOW"; then
-                log_info "开放端口 80"
                 sudo ufw allow 80/tcp
+            fi
+            if ! sudo ufw status | grep -q "443.*ALLOW"; then
+                sudo ufw allow 443/tcp
             fi
         fi
 

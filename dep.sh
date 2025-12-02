@@ -404,7 +404,7 @@ server {
     }
 
     # 反向代理配置
-    location / {
+    location /models/ {
         proxy_pass http://127.0.0.1:$app_port/;
 
         # 反向代理常规头

@@ -134,7 +134,7 @@ def qwen_vl(payload: ImageRequest):
 
         # 获取并清理Qwen-VL服务的响应
         qwen_response = response.text.strip()
-        logger.info(f"Qwen-VL服务返回: {qwen_response}")
+        logger.info(f"Qwen-VL服务返回: {qwen_response}, 请求参数: {payload}")
 
         # 清理响应文本，提取年龄分类结果
         # 移除所有引号和空白字符

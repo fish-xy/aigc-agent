@@ -100,6 +100,7 @@ async def qwen_vl(payload: ImageRequest):
     try:
         # 定义多个Qwen-VL服务域名
         QWEN_VL_DOMAINS = [
+            "llmpic01.flyingnet.org",
             "llmpic02.flyingnet.org"
         ]
         logger.info(f"请求入参，request_info: {payload.request_info}, 图片URL: {payload.image_url}")
@@ -135,7 +136,7 @@ async def qwen_vl(payload: ImageRequest):
 
         # 获取并清理Qwen-VL服务的响应
         qwen_response = response.text.strip()
-        logger.info(f"Qwen-VL服务返回: {qwen_response}, 请求参数: {payload}")
+        logger.info(f"Qwen-VL服务返回: {qwen_response}, 请求参数: {payload}，域名: {selected_domain}")
 
         # 清理响应文本，提取年龄分类结果
         # 移除所有引号和空白字符

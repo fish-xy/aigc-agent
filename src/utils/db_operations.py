@@ -8,7 +8,7 @@ import asyncpg
 from src.core.logger_util import create_logger
 
 # 日志目录
-LOG_DIR = "/home/workspace/ray-serve/logs"
+LOG_DIR = "/app/logs"
 
 # 数据库配置
 DB_CONFIG = {

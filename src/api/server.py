@@ -100,7 +100,7 @@ async def qwen_vl(payload: ImageRequest):
     try:
         # 定义多个Qwen-VL服务域名
         QWEN_VL_DOMAINS = [
-            "llmpic01.flyingnet.org"
+            "llmpic02.flyingnet.org"
         ]
         logger.info(f"请求入参，request_info: {payload.request_info}, 图片URL: {payload.image_url}")
 
@@ -158,9 +158,9 @@ async def qwen_vl(payload: ImageRequest):
         # 保存到数据库
         request_info = payload.request_info
         await insert_detection_result(
-            uid=str(request_info.get("uid", "")),
-            image_id=str(request_info.get("image_id", "")),
-            models=[request_info.get("model", "")],
+            uid=str(request_info.get("uid", "default")),
+            image_id=str(request_info.get("image_id", "default")),
+            models=[request_info.get("model", "default")],
             status="success",
             image_url=str(payload.image_url),
             result=result,

@@ -130,7 +130,7 @@ async def insert_detection_result(uid: str, image_id: str, models: list, status:
 
             record_id = await conn.fetchval(
                 insert_sql,
-                int(uid),
+                uid,
                 image_id,
                 models,
                 status,

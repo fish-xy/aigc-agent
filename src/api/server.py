@@ -158,7 +158,7 @@ async def qwen_vl(payload: ImageRequest):
         # 保存到数据库
         request_info = payload.request_info
         await insert_detection_result(
-            uid=str(request_info.get("uid", "0")),
+            uid=str(request_info.get("uid", "default")),
             image_id=str(request_info.get("image_id", "default")),
             models=[request_info.get("model", "default")],
             status="success",

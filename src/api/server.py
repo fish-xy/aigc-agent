@@ -14,6 +14,7 @@ from pydantic import BaseModel, HttpUrl
 from src.agents.base_agent import BaseAgent
 from  src.prompts.age_classification import AGE_CLASSIFICATION_PROMPT_V3
 from src.core.logger_util import create_logger
+from src.utils.db_operations import insert_detection_result
 
 import os
 import json
@@ -91,7 +92,7 @@ def classify_age(payload: ImageRequest) -> AgeClassificationResponse:
 
 
 @app.post("/models/qwen-vl")
-def qwen_vl(payload: ImageRequest):
+async def qwen_vl(payload: ImageRequest):
     """
     接收图片URL和请求信息，从多个域名中随机选择调用Qwen-VL服务进行年龄分类
     返回标准化的响应格式
@@ -147,12 +148,26 @@ def qwen_vl(payload: ImageRequest):
         else:
             cleaned_result = cleaned_text
 
-        # 返回标准化的响应格式
-        return {
+        # 构建结果
+        result = {
             "status": "success",
             "result": cleaned_result.lower(),
             "raw_response": qwen_response,
         }
+
+        # 保存到数据库
+        request_info = payload.request_info
+        await insert_detection_result(
+            uid=str(request_info.get("uid", "")),
+            image_id=str(request_info.get("image_id", "")),
+            models=[request_info.get("model", "")],
+            status="success",
+            image_url=str(payload.image_url),
+            result=result,
+            request_info=json.dumps(request_info)
+        )
+
+        return result
 
     except requests.exceptions.RequestException as e:
         logger.error(f"调用Qwen-VL服务失败，域名: {selected_domain}, 错误: {str(e)}")

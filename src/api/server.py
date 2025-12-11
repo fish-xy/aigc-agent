@@ -97,91 +97,112 @@ async def qwen_vl(payload: ImageRequest):
     接收图片URL和请求信息，从多个域名中随机选择调用Qwen-VL服务进行年龄分类
     返回标准化的响应格式
     """
-    try:
-        # 定义多个Qwen-VL服务域名
-        QWEN_VL_DOMAINS = [
-            "llmpic01.flyingnet.org",
-            "llmpic02.flyingnet.org"
-        ]
-        logger.info(f"请求入参，request_info: {payload.request_info}, 图片URL: {payload.image_url}")
+    # 定义多个Qwen-VL服务域名
+    QWEN_VL_DOMAINS = [
+        "llmpic01.flyingnet.org",
+        "llmpic02.flyingnet.org"
+    ]
 
-        # 随机选择一个域名
-        selected_domain = random.choice(QWEN_VL_DOMAINS)
+    # 随机打乱域名顺序，增加随机性
+    random.shuffle(QWEN_VL_DOMAINS)
+
+    logger.info(f"请求入参，request_info: {payload.request_info}, 图片URL: {payload.image_url}")
+
+    last_error = None
+    last_response = None
+
+    # 尝试所有可用的域名
+    for i, domain in enumerate(QWEN_VL_DOMAINS):
+        selected_domain = domain
         QWEN_VL_SERVICE_URL = f"https://{selected_domain}/models/qwen3_vl_2b/predict"
 
-        # 组装表单数据
-        form_data = {
-            "request_info": json.dumps(payload.request_info),
-            "image_input": str(payload.image_url),
-            "prompt": AGE_CLASSIFICATION_PROMPT_V3
-        }
+        try:
+            # 组装表单数据
+            form_data = {
+                "request_info": json.dumps(payload.request_info),
+                "image_input": str(payload.image_url),
+                "prompt": AGE_CLASSIFICATION_PROMPT_V3
+            }
 
-        # 设置请求头
-        headers = {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "application/json"
-        }
+            # 设置请求头
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json"
+            }
 
-        # 调用Qwen-VL服务
-        logger.debug(f"即将调用Qwen-VL服务，URL: {QWEN_VL_SERVICE_URL}, headers: {headers}, form_data: {form_data}")
-        response = requests.post(
-            QWEN_VL_SERVICE_URL,
-            data=form_data,
-            headers=headers,
-            timeout=60
-        )
+            # 调用Qwen-VL服务
+            logger.debug(f"尝试调用Qwen-VL服务，域名: {selected_domain}，URL: {QWEN_VL_SERVICE_URL}")
+            response = requests.post(
+                QWEN_VL_SERVICE_URL,
+                data=form_data,
+                headers=headers,
+                timeout=60
+            )
 
-        # 检查响应状态
-        response.raise_for_status()
+            # 检查响应状态
+            response.raise_for_status()
 
-        # 获取并清理Qwen-VL服务的响应
-        qwen_response = response.text.strip()
-        logger.info(f"Qwen-VL服务返回: {qwen_response}, 请求参数: {payload}，域名: {selected_domain}")
+            # 获取并清理Qwen-VL服务的响应
+            qwen_response = response.text.strip()
+            logger.info(f"Qwen-VL服务调用成功，域名: {selected_domain}，返回: {qwen_response}, 请求参数: {payload}，")
 
-        # 清理响应文本，提取年龄分类结果
-        # 移除所有引号和空白字符
-        cleaned_text = qwen_response.strip().strip('"').strip("'").strip()
-        valid_results = ["Child", "Adult", "Both", "Unclear"]
+            # 清理响应文本，提取年龄分类结果
+            # 移除所有引号和空白字符
+            cleaned_text = qwen_response.strip().strip('"').strip("'").strip()
+            valid_results = ["Child", "Adult", "Both", "Unclear"]
 
-        # 如果结果不在预期中，标记为Unclear
-        if cleaned_text not in valid_results:
-            cleaned_result = "Unclear"
-        else:
-            cleaned_result = cleaned_text
+            # 如果结果不在预期中，标记为Unclear
+            if cleaned_text not in valid_results:
+                cleaned_result = "Unclear"
+            else:
+                cleaned_result = cleaned_text
 
-        # 构建结果
-        result = {
-            "status": "success",
-            "result": cleaned_result.lower(),
-            "raw_response": qwen_response,
-        }
+            # 构建结果
+            result = {
+                "status": "success",
+                "result": cleaned_result.lower(),
+                "raw_response": qwen_response,
+            }
 
-        # 保存到数据库
-        request_info = payload.request_info
-        await insert_detection_result(
-            uid=str(request_info.get("uid", "default")),
-            image_id=str(request_info.get("image_id", "default")),
-            models=[request_info.get("model", "default")],
-            status="success",
-            image_url=str(payload.image_url),
-            result=result,
-            request_info=json.dumps(request_info)
-        )
+            # 保存到数据库
+            request_info = payload.request_info
+            await insert_detection_result(
+                uid=str(request_info.get("uid", "default")),
+                image_id=str(request_info.get("image_id", "default")),
+                models=[request_info.get("model", "default")],
+                status="success",
+                image_url=str(payload.image_url),
+                result=result,
+                request_info=json.dumps(request_info)
+            )
 
-        return result
+            return result
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"调用Qwen-VL服务失败，域名: {selected_domain}, 错误: {str(e)}")
-        return {
-            "status": "error",
-            "err_message": f"调用服务失败: {str(e)}",
-        }
-    except Exception as e:
-        logger.error(f"处理请求时发生错误: {str(e)}")
-        return {
-            "status": "error",
-            "err_message": f"处理请求失败: {str(e)}",
-        }
+        except requests.exceptions.RequestException as e:
+            last_error = str(e)
+            last_response = response.text if hasattr(response, 'text') else None
+
+            # 记录错误日志，但不立即返回，尝试下一个域名
+            logger.warning(f"域名 {selected_domain} 调用失败，错误: {last_error}")
+
+            if i < len(QWEN_VL_DOMAINS) - 1:
+                logger.info(f"尝试下一个域名: {QWEN_VL_DOMAINS[i + 1]}")
+                continue
+            else:
+                # 所有域名都尝试过了，返回错误
+                logger.error(f"所有域名调用失败，最后错误: {last_error}")
+                return {
+                    "status": "error",
+                    "err_message": f"所有服务调用失败: {last_error}",
+                    "last_response": last_response,
+                    "tried_domains": QWEN_VL_DOMAINS
+                }
+
+    return {
+        "status": "error",
+        "err_message": f"服务调用失败: {last_error}" if last_error else "未知错误",
+        "tried_domains": QWEN_VL_DOMAINS
+    }
 
 @app.get("/health")
 def health_check():

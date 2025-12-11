@@ -376,7 +376,7 @@ EOF
 server {
     listen 80;
     listen [::]:80;
-    server_name llmagent02.flyingnet.org;
+    server_name llmagent01.flyingnet.org;
     client_max_body_size 20M;
     return 301 https://\$host\$request_uri;
 }
@@ -387,7 +387,7 @@ EOF
 server {
     listen 443 ssl http2;
     listen [::]:443 ssl http2;
-    server_name llmagent02.flyingnet.org;
+    server_name llmagent01.flyingnet.org;
 
     ssl_certificate $cert_file;
     ssl_certificate_key $key_file;
